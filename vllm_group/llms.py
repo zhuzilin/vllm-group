@@ -6,6 +6,7 @@ import torch
 @ray.remote
 class LLM:
     def __init__(self, *args, **kwargs):
+        kwargs["distributed_executor_backend"] = "ray"
         self.llm = vllm.LLM(*args, **kwargs)
 
     def generate(self, *args, **kwargs):
