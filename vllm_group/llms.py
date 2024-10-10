@@ -12,6 +12,8 @@ class LLM:
     def generate(self, *args, **kwargs):
         return self.llm.generate(*args, **kwargs)
 
+    def encode(self, *args, **kwargs):
+        return self.llm.encode(*args, **kwargs)
 
 class LLMs:
     def __init__(
