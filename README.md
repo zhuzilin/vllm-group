@@ -5,8 +5,9 @@ In many usecases of [vllm-project/vllm](https://github.com/vllm-project/vllm), w
 ```python
 from vllm_group import LLMs
 
+# Note that currently we need to download the model to local dir first.
 llms = LLMs(
-    "Qwen/Qwen2.5-7B-Instruct",
+    "/root/Qwen2.5-7B-Instruct",
     tensor_parallel_size=2,
     trust_remote_code=True,
     func_of_seed=lambda idx: idx,

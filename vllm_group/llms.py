@@ -6,7 +6,6 @@ import torch
 @ray.remote
 class LLM:
     def __init__(self, *args, **kwargs):
-        kwargs["distributed_executor_backend"] = "ray"
         self.llm = vllm.LLM(*args, **kwargs)
 
     def generate(self, *args, **kwargs):
@@ -14,6 +13,7 @@ class LLM:
 
     def encode(self, *args, **kwargs):
         return self.llm.encode(*args, **kwargs)
+
 
 class LLMs:
     def __init__(
@@ -36,7 +36,32 @@ class LLMs:
 
         for idx in range(num_gpu // num_gpu_per_llm):
             other_kwargs = {key: value(idx) for key, value in funcs.items()}
-            llm = LLM.remote(
+
+            # The following code is from OpenRLHF.
+            # The main idea is that,
+            # when tensor_parallel_size = 1, vLLM will use gpu_executor and ray won't be triggered.
+            # therefore, we need to allocate the GPU for the gpu_executor.
+            # when tensor_parallel_size > 1, vLLM will use itself set the ray cluster, we only need
+            # to pass the placement_group through `placement_group_capture_child_tasks`.
+            num_gpus = int(tensor_parallel_size == 1)
+            scheduling_strategy = None
+
+            if tensor_parallel_size > 1:
+                pg = ray.util.placement_group(
+                    [{"GPU": 1, "CPU": 1} for _ in range(num_gpu_per_llm)]
+                )
+                scheduling_strategy = (
+                    ray.util.scheduling_strategies.PlacementGroupSchedulingStrategy(
+                        placement_group=pg,
+                        placement_group_capture_child_tasks=True,
+                        placement_group_bundle_index=0,
+                    )
+                )
+            llm = LLM.options(
+                num_cpus=1,
+                num_gpus=num_gpus,
+                scheduling_strategy=scheduling_strategy,
+            ).remote(
                 tensor_parallel_size=tensor_parallel_size,
                 pipeline_parallel_size=pipeline_parallel_size,
                 *args,
@@ -54,7 +79,7 @@ class LLMs:
 
 if __name__ == "__main__":
     llms = LLMs(
-        "Qwen/Qwen2.5-7B-Instruct",
+        "/root/Qwen2.5-7B-Instruct",
         tensor_parallel_size=2,
         trust_remote_code=True,
         func_of_seed=lambda idx: idx,
